@@ -21,10 +21,21 @@
 
 # Introduction
 
-Starlette is a lightweight [ASGI](https://asgi.readthedocs.io/en/latest/) framework/toolkit.
+Starlette is a lightweight [ASGI](https://asgi.readthedocs.io/en/latest/) framework/toolkit,
+which is ideal for building high performance asyncio services.
 
-It is ideal for building high performance asyncio services, and supports both
-HTTP and WebSockets.
+It is production-ready, and gives you the following:
+
+* Seriously impressive performance.
+* WebSocket support.
+* GraphQL support.
+* In-process background tasks.
+* Startup and shutdown events.
+* Test client built on `requests`.
+* CORS, GZip, Static Files, Streaming responses.
+* 100% test coverage.
+* 100% type annotated codebase.
+* Zero hard dependencies.
 
 ## Requirements
 
@@ -52,7 +63,7 @@ import uvicorn
 app = Starlette()
 
 @app.route('/')
-def homepage(request):
+async def homepage(request):
     return JSONResponse({'hello': 'world'})
 
 if __name__ == '__main__':
@@ -65,9 +76,11 @@ Starlette does not have any hard dependencies, but the following are optional:
 
 * `requests` - Required if you want to use the `TestClient`.
 * `aiofiles` - Required if you want to use `FileResponse` or `StaticFiles`.
-* `ujson` - Optionally used for `JSONResponse`.
+* `python-multipart` - Required if you want to support form parsing, with `request.form()`.
+* `graphene` - Required for GraphQL support.
+* `ujson` - Required if you want to use `UJSONResponse`.
 
-You can install all three of these with `pip3 install starlette[full]`.
+You can install all of these with `pip3 install starlette[full]`.
 
 ## Framework or Toolkit
 
@@ -112,7 +125,7 @@ should roughly equal or out-perform Sanic.
 
 For high throughput loads you should:
 
-* Make sure to install `ujson`.
+* Make sure to install `ujson` and use `UJSONResponse`.
 * Run using `uvicorn`, with access logging disabled.
 
 Several of the ASGI servers also have pure Python implementations available,

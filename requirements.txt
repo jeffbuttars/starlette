@@ -1,11 +1,14 @@
 # Optionals
 aiofiles
+graphene
+python-multipart
 requests
 ujson
 
 # Testing
 black
 codecov
+mypy
 pytest
 pytest-cov
 

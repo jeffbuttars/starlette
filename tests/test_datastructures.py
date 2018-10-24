@@ -27,8 +27,25 @@ def test_url():
     assert new.hostname == "example.com"
 
 
+def test_url_from_scope():
+    u = URL(scope={"path": "/path/to/somewhere", "query_string": b"abc=123"})
+    assert u == "/path/to/somewhere?abc=123"
+    assert repr(u) == "URL('/path/to/somewhere?abc=123')"
+
+    u = URL(
+        scope={
+            "scheme": "https",
+            "server": ("example.org", 123),
+            "path": "/path/to/somewhere",
+            "query_string": b"abc=123",
+        }
+    )
+    assert u == "https://example.org:123/path/to/somewhere?abc=123"
+    assert repr(u) == "URL('https://example.org:123/path/to/somewhere?abc=123')"
+
+
 def test_headers():
-    h = Headers([(b"a", b"123"), (b"a", b"456"), (b"b", b"789")])
+    h = Headers(raw=[(b"a", b"123"), (b"a", b"456"), (b"b", b"789")])
     assert "a" in h
     assert "A" in h
     assert "b" in h
@@ -43,9 +60,15 @@ def test_headers():
     assert h.items() == [("a", "123"), ("a", "456"), ("b", "789")]
     assert list(h) == [("a", "123"), ("a", "456"), ("b", "789")]
     assert dict(h) == {"a": "123", "b": "789"}
-    assert repr(h) == "Headers([('a', '123'), ('a', '456'), ('b', '789')])"
-    assert h == Headers([(b"a", b"123"), (b"b", b"789"), (b"a", b"456")])
+    assert repr(h) == "Headers(raw=[(b'a', b'123'), (b'a', b'456'), (b'b', b'789')])"
+    assert h == Headers(raw=[(b"a", b"123"), (b"b", b"789"), (b"a", b"456")])
     assert h != [(b"a", b"123"), (b"A", b"456"), (b"b", b"789")]
+
+    h = Headers({"a": "123", "b": "789"})
+    assert h["A"] == "123"
+    assert h["B"] == "789"
+    assert h.raw == [(b"a", b"123"), (b"b", b"789")]
+    assert repr(h) == "Headers({'a': '123', 'b': '789'})"
 
 
 def test_mutable_headers():
@@ -61,10 +84,11 @@ def test_mutable_headers():
     assert dict(h) == {"a": "2", "b": "4"}
     del h["a"]
     assert dict(h) == {"b": "4"}
+    assert h.raw == [(b"b", b"4")]
 
 
 def test_headers_mutablecopy():
-    h = Headers([(b"a", b"123"), (b"a", b"456"), (b"b", b"789")])
+    h = Headers(raw=[(b"a", b"123"), (b"a", b"456"), (b"b", b"789")])
     c = h.mutablecopy()
     assert c.items() == [("a", "123"), ("a", "456"), ("b", "789")]
     c["a"] = "abc"
@@ -72,7 +96,7 @@ def test_headers_mutablecopy():
 
 
 def test_queryparams():
-    q = QueryParams([("a", "123"), ("a", "456"), ("b", "789")])
+    q = QueryParams(query_string="a=123&a=456&b=789")
     assert "a" in q
     assert "A" not in q
     assert "c" not in q
@@ -85,12 +109,16 @@ def test_queryparams():
     assert q.items() == [("a", "123"), ("a", "456"), ("b", "789")]
     assert list(q) == [("a", "123"), ("a", "456"), ("b", "789")]
     assert dict(q) == {"a": "123", "b": "789"}
-    assert repr(q) == "QueryParams([('a', '123'), ('a', '456'), ('b', '789')])"
+    assert str(q) == "a=123&a=456&b=789"
+    assert repr(q) == "QueryParams(query_string='a=123&a=456&b=789')"
     assert QueryParams({"a": "123", "b": "456"}) == QueryParams(
-        [("a", "123"), ("b", "456")]
+        items=[("a", "123"), ("b", "456")]
     )
-    assert QueryParams({"a": "123", "b": "456"}) == {"b": "456", "a": "123"}
-    assert QueryParams({"a": "123", "b": "456"}) == [("b", "456"), ("a", "123")]
-    assert {"b": "456", "a": "123"} == QueryParams({"a": "123", "b": "456"})
-    assert [("b", "456"), ("a", "123")] == QueryParams({"a": "123", "b": "456"})
-    assert QueryParams() == {}
+    assert QueryParams({"a": "123", "b": "456"}) == QueryParams(
+        query_string="a=123&b=456"
+    )
+    assert QueryParams({"a": "123", "b": "456"}) == QueryParams(
+        {"b": "456", "a": "123"}
+    )
+    assert QueryParams() == QueryParams({})
+    assert QueryParams({"a": "123", "b": "456"}) != "invalid"

@@ -55,11 +55,19 @@ Headers are exposed as an immutable multi-dict.
 
 For example: `request.query_params['abc']`
 
+#### Cookies
+
+Cookies are exposed as a regular dictionary interface.
+
+For example: `request.cookies.get('mycookie')`
+
 #### Body
 
 There are a few different interfaces for returning the body of the request:
 
 The request body as bytes: `await request.body()`
+
+The request body, parsed as form data or multipart: `await request.form()`
 
 The request body, parsed as JSON: `await request.json()`
 
@@ -84,5 +92,5 @@ class App:
 ```
 
 If you access `.stream()` then the byte chunks are provided without storing
-the entire body to memory. Any subsequent calls to `.body()` and `.json()` will
-raise an error.
+the entire body to memory. Any subsequent calls to `.body()`, `.form(), or `.json()`
+will raise an error.

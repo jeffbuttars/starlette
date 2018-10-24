@@ -1,34 +1,27 @@
+import hashlib
+import os
+import typing
+import json
+
 from email.utils import formatdate
 from mimetypes import guess_type
 from starlette.background import BackgroundTask
 from starlette.datastructures import MutableHeaders, URL
 from starlette.types import Receive, Send
 from urllib.parse import quote_plus
-import hashlib
-import os
-import typing
 import http.cookies
 
 try:
     import aiofiles
     from aiofiles.os import stat as aio_stat
 except ImportError:  # pragma: nocover
-    aiofiles = None
-    aio_stat = None
+    aiofiles = None  # type: ignore
+    aio_stat = None  # type: ignore
 
 try:
-    import ujson as json
-
-    JSON_DUMPS_OPTIONS = {"ensure_ascii": False}
+    import ujson
 except ImportError:  # pragma: nocover
-    import json
-
-    JSON_DUMPS_OPTIONS = {
-        "ensure_ascii": False,
-        "allow_nan": False,
-        "indent": None,
-        "separators": (",", ":"),
-    }
+    ujson = None  # type: ignore
 
 
 class Response:
@@ -55,9 +48,9 @@ class Response:
             return content
         return content.encode(self.charset)
 
-    def init_headers(self, headers) -> None:
+    def init_headers(self, headers: typing.Mapping[str, str] = None) -> None:
         if headers is None:
-            raw_headers = []
+            raw_headers = []  # type: typing.List[typing.Tuple[bytes, bytes]]
             populate_content_length = True
             populate_content_type = True
         else:
@@ -85,7 +78,7 @@ class Response:
     @property
     def headers(self) -> MutableHeaders:
         if not hasattr(self, "_headers"):
-            self._headers = MutableHeaders(self.raw_headers)
+            self._headers = MutableHeaders(raw=self.raw_headers)
         return self._headers
 
     def set_cookie(
@@ -102,17 +95,17 @@ class Response:
         cookie = http.cookies.SimpleCookie()
         cookie[key] = value
         if max_age is not None:
-            cookie[key]["max-age"] = max_age
+            cookie[key]["max-age"] = max_age  # type: ignore
         if expires is not None:
-            cookie[key]["expires"] = expires
+            cookie[key]["expires"] = expires  # type: ignore
         if path is not None:
             cookie[key]["path"] = path
         if domain is not None:
             cookie[key]["domain"] = domain
         if secure:
-            cookie[key]["secure"] = True
+            cookie[key]["secure"] = True  # type: ignore
         if httponly:
-            cookie[key]["httponly"] = True
+            cookie[key]["httponly"] = True  # type: ignore
         cookie_val = cookie.output(header="")
         self.raw_headers.append((b"set-cookie", cookie_val.encode("latin-1")))
 
@@ -145,7 +138,20 @@ class JSONResponse(Response):
     media_type = "application/json"
 
     def render(self, content: typing.Any) -> bytes:
-        return json.dumps(content, **JSON_DUMPS_OPTIONS).encode("utf-8")
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+
+class UJSONResponse(JSONResponse):
+    media_type = "application/json"
+
+    def render(self, content: typing.Any) -> bytes:
+        return ujson.dumps(content, ensure_ascii=False).encode("utf-8")
 
 
 class RedirectResponse(Response):
@@ -210,7 +216,7 @@ class FileResponse(Response):
         if stat_result is not None:
             self.set_stat_headers(stat_result)
 
-    def set_stat_headers(self, stat_result):
+    def set_stat_headers(self, stat_result: os.stat_result) -> None:
         content_length = str(stat_result.st_size)
         last_modified = formatdate(stat_result.st_mtime, usegmt=True)
         etag_base = str(stat_result.st_mtime) + "-" + str(stat_result.st_size)

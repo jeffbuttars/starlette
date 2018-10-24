@@ -1,6 +1,6 @@
 from starlette.datastructures import Headers, MutableHeaders, URL
 from starlette.responses import PlainTextResponse
-from starlette.types import ASGIApp, ASGIInstance, Scope
+from starlette.types import ASGIApp, ASGIInstance, Receive, Scope, Send, Message
 import functools
 import typing
 import re
@@ -20,7 +20,7 @@ class CORSMiddleware:
         allow_origin_regex: str = None,
         expose_headers: typing.Sequence[str] = (),
         max_age: int = 600,
-    ):
+    ) -> None:
 
         if "*" in allow_methods:
             allow_methods = ALL_METHODS
@@ -63,10 +63,10 @@ class CORSMiddleware:
         self.simple_headers = simple_headers
         self.preflight_headers = preflight_headers
 
-    def __call__(self, scope: Scope):
+    def __call__(self, scope: Scope) -> ASGIInstance:
         if scope["type"] == "http":
             method = scope["method"]
-            headers = Headers(scope["headers"])
+            headers = Headers(scope=scope)
             origin = headers.get("origin")
 
             if origin is not None:
@@ -74,12 +74,12 @@ class CORSMiddleware:
                     return self.preflight_response(request_headers=headers)
                 else:
                     return functools.partial(
-                        self.simple_response, scope=scope, origin=origin
+                        self.simple_response, scope=scope, request_headers=headers
                     )
 
         return self.app(scope)
 
-    def is_allowed_origin(self, origin):
+    def is_allowed_origin(self, origin: str) -> bool:
         if self.allow_all_origins:
             return True
 
@@ -90,7 +90,7 @@ class CORSMiddleware:
 
         return origin in self.allow_origins
 
-    def preflight_response(self, request_headers):
+    def preflight_response(self, request_headers: Headers) -> ASGIInstance:
         requested_origin = request_headers["origin"]
         requested_method = request_headers["access-control-request-method"]
         requested_headers = request_headers.get("access-control-request-headers")
@@ -130,22 +130,34 @@ class CORSMiddleware:
 
         return PlainTextResponse("OK", status_code=200, headers=headers)
 
-    async def simple_response(self, receive, send, scope=None, origin=None):
+    async def simple_response(
+        self, receive: Receive, send: Send, scope: Scope, request_headers: Headers
+    ) -> None:
         inner = self.app(scope)
-        send = functools.partial(self.send, send=send, origin=origin)
+        send = functools.partial(self.send, send=send, request_headers=request_headers)
         await inner(receive, send)
 
-    async def send(self, message, send=None, origin=None):
+    async def send(
+        self, message: Message, send: Send, request_headers: Headers
+    ) -> None:
         if message["type"] != "http.response.start":
             await send(message)
             return
 
         message.setdefault("headers", [])
-        headers = MutableHeaders(message["headers"])
+        headers = MutableHeaders(scope=message)
+        origin = request_headers["Origin"]
+        has_cookie = "cookie" in request_headers
+
+        # If request includes any cookie headers, then we must respond
+        # with the specific origin instead of '*'.
+        if self.allow_all_origins and has_cookie:
+            self.simple_headers["Access-Control-Allow-Origin"] = origin
 
         # If we only allow specific origins, then we have to mirror back
         # the Origin header in the response.
-        if not self.allow_all_origins and self.is_allowed_origin(origin=origin):
+        elif not self.allow_all_origins and self.is_allowed_origin(origin=origin):
             headers["Access-Control-Allow-Origin"] = origin
+            headers.add_vary_header("Origin")
         headers.update(self.simple_headers)
         await send(message)
